@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cut-Up Poem Generator</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Courier+Prime:ital,wght@0,400;0,700;1,400&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --ink: #1a1008;
+    --paper: #f5efe2;
+    --paper-dark: #e8dfc8;
+    --cut: #c0392b;
+    --cut-light: #fadbd8;
+    --accent: #2c5f8a;
+    --accent-light: #d6eaf8;
+    --tape: rgba(255,220,100,0.55);
+  }
+
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: 'Courier Prime', monospace;
+    min-height: 100vh;
+    background-image:
+      repeating-linear-gradient(0deg, transparent, transparent 27px, rgba(0,0,0,0.04) 28px),
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+  }
+
+  header {
+    text-align: center;
+    padding: 2.5rem 1rem 1rem;
+    border-bottom: 2px solid var(--ink);
+    position: relative;
+  }
+
+  header::before {
+    content: '✂ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─';
+    display: block;
+    font-size: 0.8rem;
+    letter-spacing: 2px;
+    opacity: 0.35;
+    margin-bottom: 0.5rem;
+  }
+
+  h1 {
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(2rem, 5vw, 3.5rem);
+    font-weight: 700;
+    letter-spacing: -1px;
+    line-height: 1;
+  }
+
+  h1 em {
+    font-style: italic;
+    color: var(--cut);
+  }
+
+  .subtitle {
+    font-size: 0.85rem;
+    opacity: 0.6;
+    margin-top: 0.4rem;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+
+  .controls {
+    display: flex;
+    justify-content: center;
+    gap: 0.75rem;
+    padding: 1rem;
+    flex-wrap: wrap;
+  }
+
+  button {
+    font-family: 'Courier Prime', monospace;
+    font-size: 0.8rem;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    padding: 0.5rem 1.2rem;
+    border: 1.5px solid var(--ink);
+    background: transparent;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  button:hover { background: var(--ink); color: var(--paper); }
+  button.danger { border-color: var(--cut); color: var(--cut); }
+  button.danger:hover { background: var(--cut); color: white; }
+
+  .main {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0;
+    max-width: 1300px;
+    margin: 0 auto;
+    padding: 1.5rem;
+    align-items: start;
+  }
+
+  @media (max-width: 800px) {
+    .main { grid-template-columns: 1fr; }
+  }
+
+  /* WORD BANK */
+  .word-bank {
+    padding-right: 1.5rem;
+    border-right: 1.5px dashed rgba(0,0,0,0.2);
+  }
+
+  .section {
+    margin-bottom: 1.5rem;
+  }
+
+  .section-label {
+    font-family: 'Playfair Display', serif;
+    font-size: 0.7rem;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    opacity: 0.5;
+    margin-bottom: 0.6rem;
+    padding-bottom: 0.25rem;
+    border-bottom: 1px solid rgba(0,0,0,0.12);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .section-label span { font-size: 1rem; }
+
+  .word-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+  }
+
+  .word-chip {
+    display: inline-block;
+    padding: 0.25rem 0.6rem;
+    font-size: 0.95rem;
+    border: 1.5px solid var(--ink);
+    background: var(--paper);
+    cursor: pointer;
+    user-select: none;
+    transition: all 0.12s;
+    position: relative;
+    white-space: nowrap;
+  }
+
+  .word-chip:hover {
+    background: var(--ink);
+    color: var(--paper);
+    transform: rotate(-1deg) scale(1.05);
+  }
+
+  .word-chip.used {
+    opacity: 0.3;
+    text-decoration: line-through;
+    pointer-events: none;
+  }
+
+  .word-chip.noun { border-color: #7d3c98; }
+  .word-chip.noun:hover { background: #7d3c98; }
+  .word-chip.verb { border-color: #1a7a4a; }
+  .word-chip.verb:hover { background: #1a7a4a; }
+  .word-chip.adjective { border-color: #c0392b; }
+  .word-chip.adjective:hover { background: #c0392b; }
+  .word-chip.adverb { border-color: #2471a3; }
+  .word-chip.adverb:hover { background: #2471a3; }
+  .word-chip.misc { border-color: #7f6000; }
+  .word-chip.misc:hover { background: #7f6000; }
+
+  /* POEM AREA */
+  .poem-area {
+    padding-left: 1.5rem;
+    position: sticky;
+    top: 1rem;
+  }
+
+  .poem-label {
+    font-family: 'Playfair Display', serif;
+    font-size: 0.7rem;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    opacity: 0.5;
+    margin-bottom: 0.6rem;
+    padding-bottom: 0.25rem;
+    border-bottom: 1px solid rgba(0,0,0,0.12);
+  }
+
+  .poem-paper {
+    min-height: 300px;
+    border: 1.5px solid var(--ink);
+    background: white;
+    padding: 1.25rem;
+    position: relative;
+    box-shadow: 3px 3px 0 rgba(0,0,0,0.12);
+  }
+
+  .poem-paper::before {
+    content: '';
+    position: absolute;
+    left: 38px;
+    top: 0;
+    bottom: 0;
+    border-left: 1px solid rgba(200,120,100,0.4);
+  }
+
+  .poem-words {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    min-height: 60px;
+    padding-left: 1.5rem;
+  }
+
+  .poem-chip {
+    display: inline-block;
+    padding: 0.2rem 0.5rem;
+    font-size: 0.95rem;
+    border-bottom: 1.5px solid var(--ink);
+    cursor: pointer;
+    transition: all 0.12s;
+    background: var(--tape);
+    white-space: nowrap;
+  }
+
+  .poem-chip:hover {
+    background: var(--cut-light);
+    text-decoration: line-through;
+    opacity: 0.6;
+  }
+
+  .poem-placeholder {
+    font-size: 0.8rem;
+    opacity: 0.35;
+    font-style: italic;
+    padding-left: 1.5rem;
+    line-height: 1.6;
+  }
+
+  .poem-instructions {
+    font-size: 0.75rem;
+    opacity: 0.45;
+    margin-top: 0.75rem;
+    font-style: italic;
+  }
+
+  .poem-output {
+    margin-top: 1rem;
+    padding: 0.75rem 1rem;
+    background: var(--paper-dark);
+    border: 1px dashed rgba(0,0,0,0.2);
+    font-size: 0.85rem;
+    line-height: 1.7;
+    white-space: pre-wrap;
+    display: none;
+  }
+
+  .newline-btn {
+    font-size: 0.75rem;
+    padding: 0.3rem 0.75rem;
+    opacity: 0.6;
+  }
+
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin: 0.5rem 1.5rem 0;
+    font-size: 0.7rem;
+  }
+  .legend-item { display: flex; align-items: center; gap: 0.3rem; opacity: 0.65; }
+  .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Cut&#8209;Up <em>Poem</em> Generator</h1>
+  <p class="subtitle">Click words to add them &bull; Click poem words to remove them</p>
+</header>
+
+<div class="controls">
+  <button onclick="shuffleAll()">⟳ Shuffle Words</button>
+  <button onclick="addNewline()">↵ New Line</button>
+  <button onclick="showPoem()">⊞ View as Text</button>
+  <button class="danger" onclick="clearPoem()">✕ Clear Poem</button>
+</div>
+
+<div class="legend">
+  <div class="legend-item"><div class="legend-dot" style="background:#7d3c98"></div> Nouns</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#1a7a4a"></div> Verbs</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#c0392b"></div> Adjectives</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#2471a3"></div> Adverbs</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#7f6000"></div> Misc</div>
+</div>
+
+<div class="main">
+  <div class="word-bank" id="wordBank"></div>
+  <div class="poem-area">
+    <div class="poem-label">✦ Your Poem</div>
+    <div class="poem-paper">
+      <div class="poem-words" id="poemWords">
+        <div class="poem-placeholder" id="placeholder">Click words from the left to begin cutting up your poem…</div>
+      </div>
+    </div>
+    <div class="poem-instructions">Click a poem word to remove it · Use "New Line" for line breaks</div>
+    <div class="poem-output" id="poemOutput"></div>
+  </div>
+</div>
+
+<script>
+const words = {
+  nouns: [
+    "shadows","mirrors","cathedrals","vessels","wounds","alphabets","ghosts",
+    "skeletons","rivers","lanterns","manuscripts","throats","shipwrecks","corridors",
+    "feathers","monuments","nightmares","compasses","ruins","thresholds","clocks",
+    "labyrinths","pilgrims","telescopes","furnaces","archives","tremors","coastlines",
+    "tides","embers","silences","cartographers","windows","elegies","bones","echoes"
+  ],
+  verbs: [
+    "dissolve","fracture","whisper","devour","unravel","haunt","collapse",
+    "scatter","drift","ignite","surrender","inhabit","swallow","erode",
+    "flicker","gather","vanish","ache","splinter","echo","descend","bleed",
+    "orbit","linger","rupture","carve","breathe","consume","wake","shatter",
+    "illuminate","trespass","unfold","hollow","remember","betray","recede"
+  ],
+  adjectives: [
+    "hollow","molten","threadbare","ancient","silver","cracked","restless",
+    "translucent","brutal","tender","ashen","ravenous","luminous","sunken",
+    "barren","trembling","unbearable","obsidian","crooked","brittle","pale",
+    "relentless","weathered","scorched","gilded","jagged","velvet","iron",
+    "fractured","deep","wild","nameless","salt-white","fevered","tattered"
+  ],
+  adverbs: [
+    "suddenly","quietly","endlessly","barely","fiercely","blindly","almost",
+    "softly","urgently","slowly","never","always","deeply","halfway","together",
+    "wordlessly","bitterly","still","alone","outward","inward","recklessly",
+    "tenderly","endlessly","finally","once","twice","nowhere","elsewhere"
+  ],
+  misc: [
+    "the","a","an","in","of","at","by","to","into","through","against",
+    "beneath","between","beyond","among","without","within","before","after",
+    "above","below","toward","under","over","across","along","from","upon",
+    "and","but","or","as","though","until","while","because","if","—","…"
+  ]
+};
+
+const labels = {
+  nouns:      { label: "Nouns",      icon: "◆" },
+  verbs:      { label: "Verbs",      icon: "▶" },
+  adjectives: { label: "Adjectives", icon: "★" },
+  adverbs:    { label: "Adverbs",    icon: "◉" },
+  misc:       { label: "Misc / Function Words", icon: "○" }
+};
+
+let poem = []; // array of {text, type} or {text:'\\n', type:'newline'}
+
+function shuffle(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function renderBank() {
+  const bank = document.getElementById('wordBank');
+  bank.innerHTML = '';
+  for (const [type, list] of Object.entries(words)) {
+    const { label, icon } = labels[type];
+    const section = document.createElement('div');
+    section.className = 'section';
+    section.innerHTML = `<div class="section-label"><span>${icon}</span> ${label}</div>`;
+    const grid = document.createElement('div');
+    grid.className = 'word-grid';
+    shuffle(list).forEach(word => {
+      const chip = document.createElement('span');
+      chip.className = `word-chip ${type}`;
+      chip.textContent = word;
+      chip.dataset.word = word;
+      chip.dataset.type = type;
+      chip.addEventListener('click', () => addWord(word, type, chip));
+      grid.appendChild(chip);
+    });
+    section.appendChild(grid);
+    bank.appendChild(section);
+  }
+}
+
+function addWord(word, type, chip) {
+  poem.push({ text: word, type });
+  renderPoem();
+  document.getElementById('poemOutput').style.display = 'none';
+}
+
+function addNewline() {
+  if (poem.length === 0) return;
+  poem.push({ text: '\n', type: 'newline' });
+  renderPoem();
+}
+
+function removeWord(index) {
+  poem.splice(index, 1);
+  renderPoem();
+  document.getElementById('poemOutput').style.display = 'none';
+}
+
+function renderPoem() {
+  const container = document.getElementById('poemWords');
+  const placeholder = document.getElementById('placeholder');
+  container.innerHTML = '';
+
+  if (poem.length === 0) {
+    container.appendChild(placeholder || (() => {
+      const p = document.createElement('div');
+      p.className = 'poem-placeholder';
+      p.id = 'placeholder';
+      p.textContent = 'Click words from the left to begin cutting up your poem…';
+      return p;
+    })());
+    return;
+  }
+
+  poem.forEach((item, i) => {
+    if (item.type === 'newline') {
+      const br = document.createElement('div');
+      br.style.cssText = 'width:100%;height:0;flex-basis:100%;cursor:pointer;font-size:0.7rem;opacity:0.3;text-align:right;padding-right:0.5rem;';
+      br.textContent = '↵';
+      br.title = 'Click to remove line break';
+      br.addEventListener('click', () => removeWord(i));
+      container.appendChild(br);
+    } else {
+      const chip = document.createElement('span');
+      chip.className = `poem-chip`;
+      chip.textContent = item.text;
+      chip.title = 'Click to remove';
+      chip.addEventListener('click', () => removeWord(i));
+      container.appendChild(chip);
+    }
+  });
+}
+
+function clearPoem() {
+  poem = [];
+  renderPoem();
+  document.getElementById('poemOutput').style.display = 'none';
+}
+
+function showPoem() {
+  const out = document.getElementById('poemOutput');
+  if (poem.length === 0) { out.style.display = 'none'; return; }
+  let lines = [[]];
+  poem.forEach(item => {
+    if (item.type === 'newline') lines.push([]);
+    else lines[lines.length - 1].push(item.text);
+  });
+  out.textContent = lines.map(l => l.join(' ')).join('\n');
+  out.style.display = 'block';
+}
+
+function shuffleAll() {
+  renderBank();
+}
+
+renderBank();
+renderPoem();
+</script>
+</body>
+</html>
